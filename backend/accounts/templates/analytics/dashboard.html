@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h3>Аналитика</h3>
+
+    <div class="card p-3 mb-3">
+
+        <h5>1. Выбор сигнала</h5>
+
+        <select id="signal" class="form-select mb-2">
+            <option value="">-- выберите колонку --</option>
+
+            {% for col in columns %}
+                <option value="{{ col }}">{{ col }}</option>
+            {% endfor %}
+        </select>
+
+        <button id="tauBtn" class="btn btn-primary" onclick="computeTau()">
+            Вычислить задержку
+        </button>
+
+    </div>
+
+    <div class="card p-3 mb-3" id="tau-box" style="display:none;">
+
+        <h5 id="tau-title">2. Временная задержка (τ)</h5>
+
+        <button
+            class="btn btn-outline-primary mb-3"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#tauGraphs"
+        >
+            Показать график
+        </button>
+
+        <div class="collapse" id="tauGraphs">
+
+            <div class="card card-body">
+
+                <div id="tau-graph" class="mb-8" style="width:100%; height:600px;"></div>
+
+            </div>
+        </div>
+
+        <p>
+            Подобранное значение τ:
+            <b id="auto-tau"></b>
+        </p>
+
+        <input id="tau-input" class="form-control mb-2">
+
+        <button id="dimBtn" class="btn btn-success" onclick="computeDimension()">
+            Вычислить пространство вложения
+        </button>
+
+    </div>
+
+
+    <div class="card p-3 mb-3" id="dim-box" style="display:none;">
+
+        <h5 id="dim-title">3. Размерность пространства</h5>
+
+        <button
+            class="btn btn-outline-primary mb-3"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#dimGraphs"
+        >
+            Показать график
+        </button>
+
+        <div class="collapse" id="dimGraphs">
+
+            <div class="card p-3 mb-3" id="dimension-box">
+
+                <div class="mb-5">
+                
+                    <h6>Корреляционная размерность</h6>
+                
+                    <div id="corr-graph"
+                         style="width:100%; height:500px;">
+                    </div>
+                
+                    <p class="mt-2">
+                        Рекомендуемое значение:
+                        <b id="corr-auto"></b>
+                    </p>
+                
+                </div>
+            
+                <div class="mb-5">
+                
+                    <h6>Gamma Test</h6>
+                
+                    <div id="gamma-graph"
+                         style="width:100%; height:500px;">
+                    </div>
+                
+                    <p class="mt-2">
+                        Рекомендуемое значение:
+                        <b id="gamma-auto"></b>
+                    </p>
+                
+                </div>
+            
+                <div class="mb-5">
+                
+                    <h6>Ближайшие ложные соседи</h6>
+                
+                    <div id="fnn-graph"
+                         style="width:100%; height:500px;">
+                    </div>
+                
+                    <p class="mt-2">
+                        Рекомендуемое значение:
+                        <b id="fnn-auto"></b>
+                    </p>
+                
+                </div>
+            
+            </div>
+        
+        </div>
+
+        <input id="dim-input" class="form-control mb-2">
+
+        <button id="lyapBtn" class="btn btn-success" onclick="computeLyapunov()">
+            Вычислить показатель Ляпунова
+        </button>
+
+    </div>
+
+
+    <div class="card p-3 mb-3" id="lyap-box" style="display:none;">
+
+        <h5 id="lyap-title">4. Показатель Ляпунова</h5>
+
+        <button
+            class="btn btn-outline-primary mb-3"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#lyapGraphs"
+        >
+            Показать график
+        </button>
+
+        <div class="collapse" id="lyapGraphs">
+        
+            <div class="card card-body">
+
+                <div id="lyap-graph" class="mb-8" style="width:100%; height:600px;"></div>
+
+            </div>
+
+        </div>
+
+        <p>
+            λ =
+            <b id="lyap-value"></b>
+        </p>
+
+        <button id="reconstructBtn" class="btn btn-danger" onclick="reconstruct()">
+            Реконструировать аттрактор
+        </button>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+<script>
+
+const sessionId = "{{ session.id }}";
+
+function getCSRF() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+async function computeTau() {
+
+    const btn = document.getElementById("tauBtn");
+
+    btn.disabled = true;
+    btn.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Загрузка...
+    `;
+
+    try {
+    const signal = document.getElementById("signal").value;
+
+    const res = await fetch(`/analysis/${sessionId}/api/compute_tau/`, {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCSRF(),
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: "signal=" + signal
+    });
+
+    const data = await res.json();
+
+    drawTauGraphs(data.acf, data.mif);
+
+    document.getElementById("auto-tau").innerText = data.tau;
+    document.getElementById("tau-input").value = data.tau;
+
+    document.getElementById("tau-box").style.display = "block";
+
+    document
+    .getElementById("tau-title")
+    .scrollIntoView({
+        behavior: "smooth"
+    });
+
+      } catch (err) {
+        console.error(err);
+    } finally { 
+    btn.disabled = false;
+            btn.innerHTML = "Вычислить задержку";
+    }
+}
+
+async function computeDimension() {
+
+    const btn = document.getElementById("dimBtn");
+
+    btn.disabled = true;
+    btn.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Загрузка...
+    `;
+
+    try {
+    const signal = document.getElementById("signal").value;
+    const tau = document.getElementById("tau-input").value;
+
+    const res = await fetch(`/analysis/${sessionId}/api/compute_dimension/`, {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCSRF(),
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+            signal: signal,
+            tau: tau
+        })
+    });
+
+    const data = await res.json();
+
+    drawDimensionGraphs(data);
+    
+    document.getElementById("dim-box").style.display = "block";
+
+    document
+    .getElementById("dim-title")
+    .scrollIntoView({
+        behavior: "smooth"
+    });
+  
+} catch (err) {
+        console.error(err);
+    } finally { 
+    btn.disabled = false;
+            btn.innerHTML = "Вычислить пространство вложения";
+}
+}
+
+async function computeLyapunov() {
+
+    const btn = document.getElementById("lyapBtn");
+
+    btn.disabled = true;
+    btn.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Загрузка...
+    `;
+
+    try {
+    const signal = document.getElementById("signal").value;
+    const tau = document.getElementById("tau-input").value;
+    const dim = document.getElementById("dim-input").value;
+
+    const res = await fetch(`/analysis/${sessionId}/api/compute_lyapunov/`, {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCSRF(),
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+            signal: signal,
+            tau: tau,
+            dimension: dim
+        })
+    });
+
+    const data = await res.json();
+
+    drawLyapunovGraph(data);
+
+    document.getElementById("lyap-value").innerText = data.lyapunov.value;
+
+    document.getElementById("lyap-box").style.display = "block";
+
+    document
+    .getElementById("lyap-title")
+    .scrollIntoView({
+        behavior: "smooth"
+    });
+
+    } catch (err) {
+        console.error(err);
+    } finally {    
+        btn.disabled = false;
+        btn.innerHTML = "Вычислить показатель Ляпунова";
+    }
+}
+
+async function reconstruct() {
+
+    const btn = document.getElementById("reconstructBtn");
+
+    btn.disabled = true;
+    btn.innerHTML = "Реконструкция...";
+
+    try {
+
+        const res = await fetch(
+            `/analysis/${sessionId}/api/reconstruct/`,
+            {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": getCSRF(),
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: new URLSearchParams({
+                    signal: document.getElementById("signal").value,
+                    tau: document.getElementById("tau-input").value,
+                    dimension: document.getElementById("dim-input").value,
+                    lyapunov: document.getElementById("lyap-value").innerText
+                })
+            }
+        );
+
+        const data = await res.json();
+
+        window.location.href = `/datasets/${data.dataset_id}/`;
+
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = "Реконструировать аттрактор";
+    }
+}
+
+function drawTauGraphs(acf, mif) {
+
+    Plotly.newPlot("tau-graph", [
+
+        {
+            x: acf.x,
+            y: acf.y,
+            type: "scatter",
+            mode: "lines",
+            name: "Меnод автокорреляции"
+        },
+
+        {
+            x: mif.x,
+            y: mif.y,
+            type: "scatter",
+            mode: "lines",
+            name: "Метод взаимной информации"
+        }
+
+    ], {
+
+        title: "График вычисления времнной задержки",
+
+        xaxis: {
+            title: "τ"
+        },
+
+        yaxis: {
+            title: "Значение"
+        },
+
+        margin: {
+            t: 40
+        },
+
+        autosize: true
+
+    });
+}
+
+function drawDimensionGraphs(data) {
+
+    Plotly.newPlot("corr-graph", [
+
+        {
+            x: data.auto_corr.x,
+            y: data.auto_corr.y,
+            type: "scatter",
+            mode: "lines",
+            name: "Корреляционная размерность"
+        }
+
+    ], {
+
+        title: "Метод корреляционной размерности",
+
+        xaxis: {
+            title: "Размерность"
+        },
+
+        yaxis: {
+            title: "Значение"
+        },
+
+        margin: {
+            t: 40
+        },
+
+        autosize: true
+
+    });
+
+    document.getElementById("corr-auto").innerText =
+        data.auto_corr.auto_value;
+
+    Plotly.newPlot("gamma-graph", [
+
+        {
+            x: data.gamma_test.x,
+            y: data.gamma_test.y,
+            type: "scatter",
+            mode: "lines",
+            name: "Gamma Test"
+        }
+
+    ], {
+
+        title: "Gamma Test",
+
+        xaxis: {
+            title: "Размерность"
+        },
+
+        yaxis: {
+            title: "Gamma"
+        },
+
+        margin: {
+            t: 40
+        },
+
+        autosize: true
+
+    });
+
+    document.getElementById("gamma-auto").innerText =
+        data.gamma_test.auto_value;
+
+
+    Plotly.newPlot("fnn-graph", [
+
+        {
+            x: data.false_nearest.x,
+            y: data.false_nearest.y,
+            type: "scatter",
+            mode: "lines",
+            name: "False Nearest Neighbors"
+        }
+
+    ], {
+
+        title: "Метод ложных ближайших соседей",
+
+        xaxis: {
+            title: "Размерность"
+        },
+
+        yaxis: {
+            title: "FNN"
+        },
+
+        margin: {
+            t: 40
+        },
+
+        autosize: true
+
+    });
+
+    document.getElementById("fnn-auto").innerText =
+        data.false_nearest.auto_value;
+}
+
+function drawLyapunovGraph(data) {
+    Plotly.newPlot("lyap-graph", [
+
+        {
+            x: data.lyapunov.x,
+            y: data.lyapunov.y,
+            type: "scatter",
+            mode: "lines",
+            name: "Показатель ляпунова"
+        }
+
+    ], {
+
+        title: "Показатель ляпунова",
+
+        xaxis: {
+            title: "Итерации"
+        },
+
+        yaxis: {
+            title: "Оценка"
+        },
+
+        margin: {
+            t: 40
+        },
+
+        autosize: true
+
+    });
+}
+
+</script>
+
+{% endblock %}

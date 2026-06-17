@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-5">
+
+    <div class="card shadow">
+        <div class="card-body">
+
+            <h3 class="mb-4">
+                Загрузка CSV
+            </h3>
+
+            <form method="post" enctype="multipart/form-data">
+
+                {% csrf_token %}
+
+                {{ form.as_p }}
+
+                <button class="btn btn-primary">
+                    Загрузить
+                </button>
+
+            </form>
+
+        </div>
+    </div>
+
+    {% if preview %}
+
+        <div class="card shadow mt-4">
+            <div class="card-body">
+
+                <h4>Preview</h4>
+
+                {{ preview|safe }}
+
+            </div>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

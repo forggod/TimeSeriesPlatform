@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h3>Анализ данных</h3>
+
+    <div class="card p-3 mb-3">
+
+        <label class="form-label">Выберите датасет</label>
+
+        <select id="datasetSelect" class="form-select">
+            <option value="">-- выберите --</option>
+
+            {% for ds in datasets %}
+                <option value="{{ ds.id }}">
+                    {{ ds.title|default:ds.id }}
+                </option>
+            {% endfor %}
+        </select>
+
+    </div>
+
+    <div id="actions" class="card p-3 mb-3" style="display:none;">
+
+        <h5>История анализа</h5>
+
+        <button class="btn btn-primary mb-3" onclick="createAnalysis()">
+            + Создать анализ
+        </button>
+
+        <div id="sessionsList"></div>
+
+    </div>
+
+</div>
+
+<script>
+
+const sessions = JSON.parse(`{{ sessions_json|safe }}` || "[]");
+
+function getCSRF() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+document.getElementById("datasetSelect").addEventListener("change", function () {
+
+    const datasetId = this.value;
+
+    const container = document.getElementById("actions");
+
+    if (!datasetId) {
+        container.style.display = "none";
+        return;
+    }
+
+    container.style.display = "block";
+
+    renderSessions(datasetId);
+});
+
+function renderSessions(datasetId) {
+
+    const list = document.getElementById("sessionsList");
+
+    const filtered = sessions.filter(s => s.dataset_id == datasetId);
+
+    if (filtered.length === 0) {
+        list.innerHTML = "<p>Нет анализов для этого датасета</p>";
+        return;
+    }
+
+    list.innerHTML = filtered.map(s => `
+
+    <div class="card shadow-sm mb-3 border-0">
+
+        <div class="card-body">
+
+            <div class="d-flex justify-content-between align-items-start mb-3">
+
+                <div>
+
+                    <h5 class="card-title mb-1">
+                        ${s.name || ""}
+                    </h5>
+
+                    <small class="text-muted">
+                        ${s.created_at|| ""}
+                    </small>
+
+                </div>
+
+            </div>
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-2 h-100">
+
+                        <small class="text-muted d-block">
+                            Сигнал
+                        </small>
+
+                        <b>
+                            ${s.signal_parameter || "Не выбран"}
+                        </b>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-2">
+
+                    <div class="border rounded p-2 h-100">
+
+                        <small class="text-muted d-block">
+                            τ
+                        </small>
+
+                        <b>
+                            ${s.tau || "—"}
+                        </b>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-3">
+
+                    <div class="border rounded p-2 h-100">
+
+                        <small class="text-muted d-block">
+                            Размерность
+                        </small>
+
+                        <b>
+                            ${s.embedding_dim || "—"}
+                        </b>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-3">
+
+                    <div class="border rounded p-2 h-100">
+
+                        <small class="text-muted d-block">
+                            λ Ляпунова
+                        </small>
+
+                        <b>
+                            ${s.lyapunov_exponent || "—"}
+                        </b>
+
+                    </div>
+
+                </div>
+
+                ${s.dataset_id ? `
+                
+                <div class="col-md-3">
+                    <a
+                        href="/datasets/${s.dataset_id}/"
+                        class="btn btn-outline-primary btn-sm"
+                    >
+                        Открыть датасет
+                    </a>
+                </div>
+                ` : ""}
+
+            </div>
+
+        </div>
+
+    </div>
+
+`).join("");
+}
+
+async function createAnalysis() {
+
+    const datasetId = document.getElementById("datasetSelect").value;
+
+    const res = await fetch("/analysis/create/", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCSRF(),
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: "dataset_id=" + datasetId
+    });
+
+    const data = await res.json();
+
+    window.location.href = `/analysis/${data.session_id}/`;
+}
+
+</script>
+
+{% endblock %}

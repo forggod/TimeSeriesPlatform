@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h2>Прогнозирование</h2>
+
+    <div class="card p-3 mb-3">
+
+        <label class="form-label">Обученная модель</label>
+
+        <select id="modelSelect" class="form-select"></select>
+
+        <hr>
+
+        <h5>Параметры модели</h5>
+
+        <table class="table table-bordered">
+            <tbody id="modelInfo"></tbody>
+        </table>
+
+    </div>
+
+    <div class="card p-3 mb-3">
+
+        <h5>Условия прогнозирования</h5>
+
+        <div class="mb-3">
+            <label class="form-label">Максимальное количество шагов</label>
+            <input id="maxSteps" type="number" class="form-control" placeholder="Например 100">
+        </div>
+
+        <small class="text-muted">
+            Прогноз завершается при достижении лимита шагов.
+        </small>
+
+        <br>
+
+        <button id="predictBtn" class="btn btn-success mt-3">
+            Начать прогнозирование
+        </button>
+
+    </div>
+
+    <div id="results" class="card p-3 mb-3" style="display:none;">
+
+        <h4>График прогноза</h4>
+
+        <div id="predictGraph" style="height:600px;"></div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+<script>
+
+const MODELS = JSON.parse('{{ models_json|escapejs }}');
+
+var forecast_horizon = 0;
+
+/* ---------------- CSRF ---------------- */
+
+function getCSRF() {
+    return document.querySelector("[name=csrfmiddlewaretoken]")?.value;
+}
+
+/* ---------------- LOAD MODELS ---------------- */
+
+function loadModels() {
+
+    const select = document.getElementById("modelSelect");
+    select.innerHTML = "";
+
+    MODELS.forEach(model => {
+        select.innerHTML += `
+            <option value="${model.id}">
+                ${model.name} (${model.model_type})
+            </option>
+        `;
+    });
+
+    renderModelInfo();
+}
+
+/* ---------------- MODEL INFO ---------------- */
+
+function renderModelInfo() {
+
+    const id = parseInt(document.getElementById("modelSelect").value);
+    const model = MODELS.find(x => x.id === id);
+    if (!model) return;
+
+    forecast_horizon = model.forecast_horizon;
+
+    document.getElementById("modelInfo").innerHTML = `
+        <tr><td>Название</td><td>${model.name}</td></tr>
+        <tr><td>Тип модели</td><td>${model.model_type}</td></tr>
+        <tr><td>Целевой параметр</td><td>${model.target}</td></tr>
+        <tr><td>Точность</td><td>${(model.accuracy * 100).toFixed(2)} %</td></tr>
+        <tr><td>Рекомендуемый горизонт прогноза</td><td>${model.forecast_horizon ?? "-"}</td></tr>
+        <tr><td>Дата</td><td>${model.created_at}</td></tr>
+    `;
+}
+
+document.addEventListener("DOMContentLoaded", loadModels);
+
+document.addEventListener("change", function(e){
+    if (e.target.id === "modelSelect") {
+        renderModelInfo();
+    }
+});
+
+/* ---------------- FORECAST ---------------- */
+
+document.getElementById("predictBtn").addEventListener("click", predictModel);
+
+async function predictModel() {
+
+    const btn = document.getElementById("predictBtn");
+    btn.disabled = true;
+
+    btn.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Прогноз...
+    `;
+
+    const body = new URLSearchParams({
+        model_id: document.getElementById("modelSelect").value,
+        max_steps: document.getElementById("maxSteps").value
+    });
+
+    const res = await fetch("/predict/run/", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCSRF()
+        },
+        body: body
+    });
+
+    const data = await res.json();
+
+    document.getElementById("results").style.display = "block";
+
+    drawForecast(data);
+
+    btn.disabled = false;
+    btn.innerHTML = "Начать прогнозирование";
+}
+
+/* ---------------- PLOT ---------------- */
+
+function drawForecast(data) {
+
+    const history = data.history || [];
+    const forecast = data.predicted || [];
+    const horizon = forecast_horizon;
+
+    const full = history.concat(forecast);
+
+    const split = history.length;
+
+    const forecastMain = forecast.slice(0, horizon);
+    const forecastRest = forecast.slice(horizon);
+
+    const forecastMainSeries = Array(split)
+        .fill(null)
+        .concat(forecastMain);
+
+    const forecastRestSeries = Array(split + horizon)
+        .fill(null)
+        .concat(forecastRest);
+
+    Plotly.newPlot("predictGraph", [
+        // 🟦 история
+        {
+            y: history,
+            mode: "lines",
+            name: "История"
+        },
+
+        // 🟥 выделенный horizon участок
+        {
+            y: forecastMainSeries,
+            mode: "lines",
+            name: "Рекомендуемый горизонт",
+            line: {
+                color: "orange",
+                width: 3
+            }
+        },
+
+        // ⚪ остальной прогноз
+        {
+            y: forecastRestSeries,
+            mode: "lines",
+            name: "Остальной прогноз",
+            line: {
+                color: "gray",
+                dash: "dot"
+            }
+        },
+
+        // 🔴 точка начала прогноза
+        {
+            x: [split],
+            y: [history[history.length - 1]],
+            mode: "markers",
+            name: "Начало прогноза",
+            marker: {
+                size: 10,
+                color: "red"
+            }
+        }
+    ], {
+        title: "Прогноз временного ряда",
+        xaxis: { title: "Шаг" },
+        yaxis: { title: "Значение" },
+        autosize: true
+    });
+}
+
+</script>
+
+{% endblock %}

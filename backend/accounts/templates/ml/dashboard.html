@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h2>Обучение модели</h2>
+
+    <!-- DATASET -->
+    <div class="card p-3 mb-3">
+
+        <label class="form-label">Датасет</label>
+
+        <select id="dataset" class="form-select mb-3">
+            <option value="">-- выберите датасет --</option>
+
+            {% for d in datasets %}
+                <option value="{{ d.id }}">
+                    {{ d.title|default:d.id }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <!-- TARGET -->
+        <label class="form-label">Целевой параметр</label>
+        <select id="target" class="form-select mb-3"></select>
+
+        <!-- MODEL -->
+        <label class="form-label">Модель</label>
+        <select id="model" class="form-select mb-3"></select>
+
+        <!-- PARAMS -->
+        <div id="params" class="mt-3"></div>
+
+        <!-- TRAIN -->
+        <button id="trainBtn" class="btn btn-success mt-3">
+            Обучить
+        </button>
+
+    </div>
+
+    <!-- RESULTS -->
+    <div class="card p-3 mb-3" id="results" style="display:none;">
+
+        <h4>Метрики</h4>
+
+        <table class="table table-bordered">
+
+            <tr><td>MSE</td><td id="mse"></td></tr>
+            <tr><td>RMSE</td><td id="rmse"></td></tr>
+            <tr><td>NRMSE</td><td id="nrmse"></td></tr>
+            <tr><td>EMSE</td><td id="emse"></td></tr>
+            <tr><td>Accuracy</td><td id="accuracy"></td></tr>
+
+        </table>
+
+        <div id="loss-graph" style="height:500px;"></div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+<script>
+
+/* =========================
+   DATA
+========================= */
+const MODELS = JSON.parse('{{ models_json|escapejs }}');
+const DATASETS = JSON.parse('{{ datasets_json|escapejs }}');
+
+/* =========================
+   CSRF
+========================= */
+function getCSRF() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+/* =========================
+   INIT MODELS
+========================= */
+function initModels() {
+
+    const select = document.getElementById("model");
+    select.innerHTML = "";
+
+    Object.keys(MODELS).forEach((key, i) => {
+
+        const opt = document.createElement("option");
+        opt.value = key;
+        opt.textContent = MODELS[key].name;
+
+        if (i === 0) opt.selected = true;
+
+        select.appendChild(opt);
+    });
+}
+
+/* =========================
+   PARAMS
+========================= */
+function renderParams() {
+
+    const model = document.getElementById("model").value;
+
+    if (!MODELS[model]) return;
+
+    const params = MODELS[model].params;
+    const container = document.getElementById("params");
+
+    container.innerHTML = "";
+
+    for (const key in params) {
+
+        const p = params[key];
+
+        container.innerHTML += `
+            <div class="mb-3">
+                <label class="form-label">${p.label}</label>
+                <input 
+                    id="${key}" 
+                    class="form-control" 
+                    type="${p.type || 'text'}"
+                    value="${p.default}"
+                >
+            </div>
+        `;
+    }
+}
+
+/* =========================
+   DATASET → TARGET
+========================= */
+function bindDataset() {
+
+    document.getElementById("dataset").addEventListener("change", function () {
+
+        const ds = DATASETS.find(d => d.id == this.value);
+
+        const target = document.getElementById("target");
+        target.innerHTML = "";
+
+        if (!ds) return;
+
+        ds.columns.forEach(col => {
+            target.innerHTML += `<option value="${col}">${col}</option>`;
+        });
+    });
+}
+
+/* =========================
+   TRAIN
+========================= */
+async function trainModel() {
+
+    const btn = document.getElementById("trainBtn");
+
+    btn.disabled = true;
+    btn.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Обучение...
+    `;
+    try {
+
+    const model = document.getElementById("model").value;
+
+    const body = new URLSearchParams({
+        dataset_id: document.getElementById("dataset").value,
+        target: document.getElementById("target").value,
+        model_name: model
+    });
+
+    for (const key in MODELS[model].params) {
+
+    body.append(
+        key,
+        document.getElementById(key).value
+    );
+
+    console.log(`${key}: ${document.getElementById(key).value}`);
+}
+
+    const res = await fetch("/train/", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCSRF()
+        },
+        body: body
+    });
+
+    const data = await res.json();
+
+    document.getElementById("results").style.display = "block";
+
+    document.getElementById("mse").innerText = data.mse.toFixed(6);
+    document.getElementById("rmse").innerText = data.rmse.toFixed(6);
+    document.getElementById("nrmse").innerText = data.nrmse.toFixed(6);
+    document.getElementById("emse").innerText = data.emse.toFixed(6);
+    document.getElementById("accuracy").innerText = data.accuracy.toFixed(6);
+
+    Plotly.newPlot("loss-graph", [
+        {
+            y: data.train_losses,
+            type: "scatter",
+            mode: "lines",
+            name: "Train"
+        },
+        {
+            y: data.val_losses,
+            type: "scatter",
+            mode: "lines",
+            name: "Val"
+        }
+    ]);
+
+    document
+    .getElementById("results")
+    .scrollIntoView({
+        behavior: "smooth"
+    });
+
+      } catch (err) {
+        console.error(err);
+    } finally { 
+        btn.disabled = false;
+        btn.innerHTML = "Обучить";
+    }
+}
+
+/* =========================
+   INIT
+========================= */
+window.addEventListener("DOMContentLoaded", () => {
+
+    initModels();
+    renderParams();
+    bindDataset();
+
+    document.getElementById("model")
+        .addEventListener("change", renderParams);
+
+    document.getElementById("trainBtn")
+        .addEventListener("click", trainModel);
+});
+
+</script>
+
+{% endblock %}

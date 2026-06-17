@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h2>Обучение модели</h2>
+
+    <div class="card p-4 mb-4">
+
+        <label class="form-label">
+            Датасет
+        </label>
+
+        <select
+            id="dataset"
+            class="form-select mb-3"
+        >
+
+            {% for d in datasets %}
+
+                <option value="{{ d.id }}">
+                    {{ d.title }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label class="form-label">
+            Целевой параметр
+        </label>
+
+        <input
+            id="target"
+            class="form-control mb-3"
+            placeholder="x0"
+        >
+
+        <label class="form-label">
+            Модель
+        </label>
+
+        <select
+            id="model"
+            class="form-select mb-4"
+        >
+
+            {% for key, model in models.items %}
+
+                <option value="{{ key }}">
+                    {{ model.name }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <div id="params"></div>
+
+        <button
+            id="trainBtn"
+            class="btn btn-success"
+            onclick="trainModel()"
+        >
+            Обучить
+        </button>
+
+    </div>
+
+    <div
+        class="card p-4"
+        id="results"
+        style="display:none;"
+    >
+
+        <h4>Метрики</h4>
+
+        <table class="table">
+
+            <tr>
+                <td>MSE</td>
+                <td id="mse"></td>
+            </tr>
+
+            <tr>
+                <td>RMSE</td>
+                <td id="rmse"></td>
+            </tr>
+
+            <tr>
+                <td>NRMSE</td>
+                <td id="nrmse"></td>
+            </tr>
+
+            <tr>
+                <td>EMSE</td>
+                <td id="emse"></td>
+            </tr>
+
+            <tr>
+                <td>Accuracy</td>
+                <td id="accuracy"></td>
+            </tr>
+
+        </table>
+
+        <div
+            id="loss-graph"
+            style="height:500px;"
+        ></div>
+
+    </div>
+
+</div>
+
+<script>
+
+    function getCSRF() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+const MODELS = {{ models|safe }};
+
+function renderParams() {
+
+    const model = document.getElementById("model").value;
+
+    const params = MODELS[model].params;
+
+    const container =
+        document.getElementById("params");
+
+    container.innerHTML = "";
+
+    for (const key in params) {
+
+        container.innerHTML += `
+
+            <div class="mb-3">
+
+                <label class="form-label">
+                    ${key}
+                </label>
+
+                <input
+                    id="${key}"
+                    class="form-control"
+                    value="${params[key]}"
+                >
+
+            </div>
+        `;
+    }
+}
+
+renderParams();
+
+document
+    .getElementById("model")
+    .addEventListener(
+        "change",
+        renderParams
+    );
+
+async function trainModel() {
+
+    const btn =
+        document.getElementById("trainBtn");
+
+    btn.disabled = true;
+
+    btn.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Обучение...
+    `;
+
+    const model =
+        document.getElementById("model").value;
+
+    const params =
+        MODELS[model].params;
+
+    const body = new URLSearchParams({
+
+        dataset:
+            document.getElementById("dataset").value,
+
+        target:
+            document.getElementById("target").value,
+
+        model_name: model
+    });
+
+    for (const key in params) {
+
+        body.append(
+            key,
+            document.getElementById(key).value
+        );
+    }
+
+    {% comment %} try { {% endcomment %}
+
+        const res = await fetch(
+            "/ml/train/",
+            {
+
+                method: "POST",
+
+                headers: {
+                    "X-CSRFToken": getCSRF()
+                },
+
+                body: body
+            }
+        );
+
+        const data = await res.json();
+
+        document
+            .getElementById("results")
+            .style.display = "block";
+
+        document.getElementById("mse")
+            .innerText =
+            data.mse.toFixed(6);
+
+        document.getElementById("rmse")
+            .innerText =
+            data.rmse.toFixed(6);
+
+        document.getElementById("nrmse")
+            .innerText =
+            data.nrmse.toFixed(6);
+
+        document.getElementById("emse")
+            .innerText =
+            data.emse.toFixed(6);
+
+        document.getElementById("accuracy")
+            .innerText =
+            data.accuracy.toFixed(6);
+
+        Plotly.newPlot("loss-graph", [
+
+            {
+
+                y: data.train_losses,
+
+                type: "scatter",
+
+                mode: "lines",
+
+                name: "Train Loss"
+            },
+
+            {
+
+                y: data.val_losses,
+
+                type: "scatter",
+
+                mode: "lines",
+
+                name: "Validation Loss"
+            }
+
+        ], {
+
+            title: "График обучения",
+
+            xaxis: {
+                title: "Epoch"
+            },
+
+            yaxis: {
+                title: "Loss"
+            },
+
+            autosize: true
+        });
+
+    {% comment %} } catch(err) {
+
+        alert("Ошибка обучения");
+    } {% endcomment %}
+
+    btn.disabled = false;
+
+    btn.innerHTML = "Обучить";
+}
+
+</script>
+
+{% endblock %}

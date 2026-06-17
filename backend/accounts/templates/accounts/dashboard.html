@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Дашборд</h2>
+
+<div class="row mt-4">
+
+    <div class="col-12 col-sm-6 col-lg-4 mb-4">
+        <div class="card shadow-sm tile-card position-relative">
+            <div class="card-body">
+                <h5>Датасеты</h5>
+                <p>Загрузка, генерация и управление датасетами</p>
+                <a href="{% url 'datasets' %}" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-4 mb-4">
+        <div class="card shadow-sm tile-card position-relative">
+            <div class="card-body">
+                <h5>Характеристики</h5>
+                <p>Нахождение харакетристик системы</p>
+                <a href="{% url 'analysis_list' %}" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-4 mb-4">
+        <div class="card shadow-sm tile-card position-relative">
+            <div class="card-body">
+                <h5>Модели</h5>
+                <p>Обучение ML / DL моделей</p>
+                <a href="{% url 'ml_dashboard' %}" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-4 mb-4">
+        <div class="card shadow-sm tile-card position-relative">
+            <div class="card-body">
+                <h5>Прогноз</h5>
+                <p>Предсказание значений</p>
+                <a href="{% url 'predict_dashboard' %}" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

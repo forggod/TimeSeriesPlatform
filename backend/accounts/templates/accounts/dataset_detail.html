@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-5">
+
+    <h2 class="mb-4">
+        {{ dataset.title }}
+    </h2>
+
+    <div class="card shadow mb-4">
+
+        <div class="card-body">
+
+            <form method="get">
+
+                <label class="form-label">
+                    Выбранная колонка
+                </label>
+
+                <select
+                    name="target"
+                    class="form-select mb-3"
+                >
+
+                    <option value="">
+                        Выберите колонку
+                    </option>
+
+                    {% for col in columns %}
+
+                        <option
+                            value="{{ col }}"
+                            {% if col == target %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ col }}
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+                <button class="btn btn-primary">
+                    Построить график
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+    <!-- PLOT -->
+
+    {% if plot_div %}
+
+        <div class="card shadow mb-4">
+
+            <div class="card-body">
+
+                {{ plot_div|safe }}
+
+            </div>
+
+        </div>
+
+    {% endif %}
+
+    <div class="card shadow mb-4">
+
+        <div class="card-body">
+
+            <h4>
+                Предпросмотр
+            </h4>
+
+            {{ preview|safe }}
+
+        </div>
+
+    </div>
+
+    <div class="card shadow">
+
+        <div class="card-body">
+
+            <h4>
+                Статистика
+            </h4>
+
+            {{ stats|safe }}
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h3>Генератор датасета</h3>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <select name="attractor" id="attractor" class="form-select mb-3">
+            {% for name, gen in generators.items %}
+                <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+
+        <div id="params">
+
+        </div>
+
+        <button class="btn btn-success">
+            Сгенерировать
+        </button>
+
+    </form>
+
+</div>
+
+{{ schemas|json_script:"schemas-data" }}
+
+<script>
+    const schemas = JSON.parse(
+        document.getElementById("schemas-data").textContent
+    );
+
+    function render(name) {
+        const schema = schemas[name];
+        const container = document.getElementById("params");
+
+        container.innerHTML = "";
+
+        for (const key in schema) {
+            const field = schema[key];
+
+            container.innerHTML += `
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        ${key}
+                    </label>
+
+                    <input
+                        name="${key}"
+                        value="${field.default}"
+                        class="form-control"
+                    >
+
+                </div>
+            `;
+        }
+    }
+
+    const select = document.getElementById("attractor");
+
+    select.addEventListener("change", e => render(e.target.value));
+
+    render(select.value);
+</script>
+
+{% endblock %}
