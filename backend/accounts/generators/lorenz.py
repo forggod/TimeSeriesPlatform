@@ -1,6 +1,7 @@
 import numpy as np
 from .base import BaseAttractor
 
+
 class LorenzAttractor(BaseAttractor):
 
     name = "lorenz"

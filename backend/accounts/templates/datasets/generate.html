@@ -9,6 +9,17 @@
     <form method="post">
         {% csrf_token %}
 
+        <div class="mb-3">
+            <label for="dataset_name" class="form-label">Название датасета</label>
+            <input type="text" 
+                   id="dataset_name" 
+                   name="dataset_name" 
+                   class="form-control" 
+                   placeholder="Введите название датасета"
+                   value=""
+                   required>
+        </div>
+
         <select name="attractor" id="attractor" class="form-select mb-3">
             {% for name, gen in generators.items %}
                 <option value="{{ name }}">{{ name }}</option>
